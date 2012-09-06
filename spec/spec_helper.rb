@@ -1,10 +1,9 @@
 require 'rubygems'
 require 'spork'
-require 'simplecov'
 require 'test/unit'
 
 Spork.prefork do
-  unless ENV['DRB']
+  unless ENV['DRB'] || ENV['TRAVIS']
     require 'simplecov'
     SimpleCov.start 'rails'
   end
@@ -32,7 +31,7 @@ end
 
 Spork.each_run do
   require Rails.root.join('test','blueprints')
-  if ENV['DRB']
+  if ENV['DRB'] && ! ENV['TRAVIS']
       require 'simplecov'
       SimpleCov.start 'rails'
   end

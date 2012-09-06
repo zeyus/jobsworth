@@ -190,11 +190,6 @@ module TasksHelper
     return _("Manually overridden")                     if  task.due_at
     return _("From milestone %s", task.milestone.name)  if task.milestone.try(:due_at)
   end
-  # Returns the notify emails for the given task, one per line
-  def notify_emails_on_newlines(task)
-    emails = task.notify_emails_array
-    return emails.join("\n")
-  end
 
   # Returns a hash of permissions for the current task and user
   def perms
@@ -255,7 +250,7 @@ module TasksHelper
     options = {}
     options["Project"] = task.project.name
     options["Milestone"] = task.milestone.try(:name) || "None"
-    options["Estimate"] = task.duration.to_i > 0 ? TimeParser.format_duration(task.duration) : "<small>#{TimeParser.format_duration(task.default_duration)}(default)</small>"
+    options["Estimate"] = task.duration.to_i > 0 ? TimeParser.format_duration(task.duration) : "<span class='muted'>#{TimeParser.format_duration(task.default_duration)}(default)</span>"
     options["Deadline"] = task.due_at.nil? ? "Not specified" : due_in_words(task)
     options["Remaining"] = TimeParser.format_duration(task.minutes_left)
     options["Remaining"] += "(<span class='due_overdue'>exceeded by " + TimeParser.format_duration(task.worked_minutes - task.adjusted_duration) + "</span>)" if task.overworked?
@@ -268,28 +263,17 @@ module TasksHelper
     html
   end
 
-  def next_tasks(user, tasks, &blk)
-    acc_total = user.work_logs.where("started_at > ? AND started_at < ?", user.tz.now.beginning_of_day, user.tz.now.end_of_day).sum(:duration)
+  def human_future_date(date, user)
+    return %q[<span class="label label-error">never</span>] if date.nil?
 
-    due_date_num = 0
-    tasks.each do |task|
-      while acc_total >= user.workday_length(user.tz.now + due_date_num.days)
-        due_date_num += 1
-        acc_total -= user.workday_length(user.tz.now + due_date_num.days)
-      end
-
-      if due_date_num == 0
-        yield task, %q[<span class="label label-warning">today</span>].html_safe
-      elsif due_date_num == 1
-        yield task, %q[<span class="label label-info">tomorrow</span>].html_safe
-      elsif due_date_num < 7
-        yield task, (%q[<span class="label">%s</span>] % (user.tz.now + due_date_num.days).strftime_localized("%A")).html_safe
-      else
-        yield task, ""
-      end
-
-      # show which the task begins, instead of the finish date
-      acc_total += task.minutes_left
+    if date < user.tz.now.end_of_day
+      %q[<span class="label label-warning">today</span>].html_safe
+    elsif date < user.tz.now.end_of_day + 1.days
+      %q[<span class="label label-info">tomorrow</span>].html_safe
+    elsif date < user.tz.now.end_of_day + 7.days
+      (%q[<span class="label">%s</span>] % date.strftime_localized("%A")).html_safe
+    else
+      user.tz.utc_to_local(date).strftime(user.date_format)
     end
   end
 
