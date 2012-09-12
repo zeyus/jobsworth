@@ -166,12 +166,19 @@ module TasksHelper
 
   # Returns html to display the due date selector for task
   def due_date_field(task, permissions)
-    date_tooltip = _("Enter task due date.")
+    task_due_at = task.due_at.nil? ? "" : task.due_at.utc.strftime("#{current_user.date_format}")
+    milestone_due_at = task.milestone.try(:due_at)
+    placeholder = milestone_due_at.nil? ? "" : milestone_due_at.strftime("#{current_user.date_format}")
+    date_tooltip = (task.due_at.nil? and !milestone_due_at.nil?) ? "Target date from milestone" : "Set task due date"
 
     options = {
-      :id => "due_at", :title => date_tooltip.html_safe,
+      :id => "due_at",
+      :title => date_tooltip.html_safe,
+      :rel => :tooltip,
+      "data-placement" => :right,
+      :placeholder => placeholder,
       :size => 12,
-      :value => (task.due_at.nil? ? "" : task.due_at.utc.strftime("#{current_user.date_format}")),
+      :value => task_due_at,
       :autocomplete => "off"
     }
     options = options.merge(permissions['edit'])
@@ -264,19 +271,44 @@ module TasksHelper
   end
 
   def human_future_date(date, user)
-    return %q[<span class="label label-important">never</span>].html_safe if date.nil?
+    return %q[<span class="label label-important">unknown</span>].html_safe if date.nil?
 
-    if date < user.tz.now.end_of_day
+    if date < Time.now.end_of_day
       %q[<span class="label label-warning">today</span>].html_safe
-    elsif date < user.tz.now.end_of_day + 1.days
+    elsif date < Time.now.end_of_day + 1.days
       %q[<span class="label label-info">tomorrow</span>].html_safe
-    elsif date < user.tz.now.end_of_day + 7.days
+    elsif date < Time.now.end_of_day + 7.days
       (%q[<span class="label">%s</span>] % user.tz.utc_to_local(date).strftime_localized("%a")).html_safe
-    elsif date < user.tz.now + 6.months
+    elsif date < Time.now.end_of_day + 30.days
+      (%q[<span class="label">%s days</span>] % ((date - Time.now).round/86400)).html_safe
+    elsif date < Time.now.end_of_day + 12.months
       (%q[<span class="label">%s</span>] % user.tz.utc_to_local(date).strftime_localized("%b")).html_safe
     else
-      %q[<span class="label">future</span>].html_safe
+      (%q[<span class="label">%s</span>] % date.strftime("%Y")).html_safe
     end
+  end
+
+  def work_log_attribute
+    custom_attributes = current_user.company.custom_attributes.where(:attributable_type => "WorkLog")
+
+    custom_attributes.each do |ca|
+      return ca if ca.preset?
+    end
+    nil
+  end
+
+  def default_work_log_choice(attr)
+    return nil if attr.nil?
+
+    default_choice = attr.custom_attribute_choices.first
+    # set latest used value as default
+    last = @task.work_logs.worktimes.where(:user_id => current_user.id).last
+    if last
+      last_value = last.custom_attribute_values(:include => :choice).where(:custom_attribute_id => attr.id).first
+      default_choice = last_value.choice if last_value
+    end
+
+    return default_choice
   end
 
   private

@@ -23,20 +23,17 @@
 
   <div class="control-group clearfix">
     <label for="task[due_at]"> <%=_ 'Target Date' %> </label>
-    <div id="target_date">
-      <span title="<%= target_date_tooltip(@task)%>"> <%= target_date(@task)%> </span>
-      <a id="override_target_date" <%= 'style="display:none"'.html_safe unless @task.due_at.nil? %> href="#">override</a>
-      <a id="clear_target_date" <%= 'style="display:none"'.html_safe if @task.due_at.nil? %> href="#">clear</a>
-    </div>
-    <div id="due_date_field" style="display:none;" class="pull-left">
+    <div id="due_date_field" class="pull-left">
       <%= due_date_field(@task, perms) %>
     </div>
   </div>
 
-  <div class="control-group">
-    <label>Estimate Date</label>
-    <span style="margin-top:1em;float:left;"><%= human_future_date(@task.estimate_date, current_user) %></span>
-  </div>
+  <% unless @task.resolved? or @task.new_record? %>
+    <div class="control-group">
+      <label>Estimate Date</label>
+      <span style="margin-top:1em;float:left;"><%= human_future_date(@task.estimate_date, current_user) %></span>
+    </div>
+  <% end %>
 
   <div class="control-group">
     <label for="task_status"><%= _("Resolution") %></label>
