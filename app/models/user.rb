@@ -348,31 +348,31 @@ class User < ActiveRecord::Base
   end
 
   def workday_length(date)
-    (self.work_plan.send(date.strftime("%A").downcase) * 60).to_i
+    (self.work_plan.send(self.tz.utc_to_local(date.utc).strftime("%A").downcase) * 60).to_i
   end
 
   def schedule_tasks(options={})
     options[:limit] ||= 1000000
     options[:save] = true unless options.key?(:save)
 
-    acc_total = self.work_logs.where("started_at > ? AND started_at < ?", self.tz.now.beginning_of_day, self.tz.now.end_of_day).sum(:duration)
+    acc_total = self.work_logs.where("started_at > ? AND started_at < ?", self.tz.local_to_utc(self.tz.now.beginning_of_day), self.tz.local_to_utc(self.tz.now.end_of_day)).sum(:duration)
 
     due_date_num = 0
     self.next_tasks(options[:limit]).each do |task|
-      while acc_total >= self.workday_length(self.tz.now + due_date_num.days)
+      while acc_total >= self.workday_length(Time.now + due_date_num.days)
+        acc_total -= self.workday_length(Time.now + due_date_num.days)
         due_date_num += 1
-        acc_total -= self.workday_length(self.tz.now + due_date_num.days)
       end
 
       if options[:save]
-        task.update_attributes(:estimate_date => self.tz.now + due_date_num.days)
+        task.update_attributes(:estimate_date => Time.now + due_date_num.days)
       else
-        task.estimate_date = self.tz.now + due_date_num.days
+        task.estimate_date = Time.now + due_date_num.days
       end
 
       yield task if block_given?
 
-      # show which the task begins, instead of the finish date
+      # show when the task begins, instead of the finish date
       acc_total += task.minutes_left
     end
   end
