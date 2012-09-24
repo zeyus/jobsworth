@@ -287,15 +287,14 @@ class Task < AbstractTask
       return true
     end
 
+    return self.weight = nil if self.milestone and self.milestone.status_name == :planning
+
     all_score_rules = score_rules
     
     unless all_score_rules.empty?
       self.weight = all_score_rules.inject(self.weight_adjustment) do |result, score_rule|
         result + score_rule.calculate_score_for(self)
       end
-    end
-    unless self.milestone.nil?
-      self.weight = nil if self.milestone.status_name == :planning
     end
   end
 
