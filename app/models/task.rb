@@ -24,7 +24,10 @@ class Task < AbstractTask
       p.save
     end
 
-    r.milestone.update_counts if r.milestone
+    if r.milestone
+      r.milestone.update_counts
+      r.milestone.update_status
+    end
   }
 
   before_save :calculate_score
@@ -291,6 +294,8 @@ class Task < AbstractTask
         result + score_rule.calculate_score_for(self)
       end
     end
+
+    self.weight = nil if self.milestone.status_name == :planning
   end
 
   # If creating a new work log with a duration, fails because it work log

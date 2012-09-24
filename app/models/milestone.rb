@@ -6,6 +6,8 @@
 class Milestone < ActiveRecord::Base
   include Scorable
 
+  STATUSES = [:planning, :open, :locked, :closed]
+
   belongs_to :company
   belongs_to :project
   belongs_to :user
@@ -19,21 +21,39 @@ class Milestone < ActiveRecord::Base
     r.project.save
   }
 
-  scope :not_completed, where('completed_at IS ?', nil)
-  scope :completed, where('completed_at IS NOT ?', nil)
+  scope :can_add_task, where('status = ? OR status = ?', STATUSES.index(:planning), STATUSES.index(:open))
+  scope :completed, where('status = ?', STATUSES.index(:closed))
+
+  STATUSES.each do |s|
+    define_method(s.to_s + "?") do
+      self.status == STATUSES.index(s)
+    end
+  end
+
+  def status_name
+    self.status.nil? ? nil : STATUSES[self.status]
+  end
+
+  def status_name=(s)
+    self.status = STATUSES.index(s)
+  end
 
   def percent_complete
     return 0.0 if total_tasks == 0
     return (completed_tasks.to_f / total_tasks.to_f) * 100.0
   end
 
-  def complete?
-    !self.completed_at.nil?
+  # auto close milestone if milestone is locked and all tasks closed
+  def update_status
+    if self.locked? and self.tasks.open_only.count == 0
+      self.update_attributes(:status_name => :closed, :completed_at => Time.now)
+    end
   end
-  
+
   def escape_twice(attr)
     h(String.new(h(attr)))
   end
+
   def to_tip(options = { })
     res = "<table cellpadding=0 cellspacing=0>"
     res << "<tr><th>#{_('Name')}</th><td> #{escape_twice(self.name)}</td></tr>"
