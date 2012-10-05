@@ -423,6 +423,7 @@ ActiveRecord::Schema.define(:version => 20121002082358) do
     t.text     "message"
     t.integer  "scm_files_count"
     t.integer  "task_id"
+    t.string   "changeset_url",   :default => "", :null => false
   end
 
   add_index "scm_changesets", ["author"], :name => "scm_changesets_author_index"
@@ -813,8 +814,10 @@ ActiveRecord::Schema.define(:version => 20121002082358) do
     t.integer  "email_address_id"
   end
 
+  add_index "work_logs", ["access_level_id"], :name => "work_logs_access_level_id_fk"
   add_index "work_logs", ["company_id"], :name => "work_logs_company_id_index"
   add_index "work_logs", ["customer_id"], :name => "work_logs_customer_id_index"
+  add_index "work_logs", ["email_address_id"], :name => "work_logs_email_address_id_fk"
   add_index "work_logs", ["project_id"], :name => "work_logs_project_id_index"
   add_index "work_logs", ["task_id", "started_at"], :name => "index_work_logs_on_task_id_and_started_at"
   add_index "work_logs", ["task_id"], :name => "work_logs_task_id_index"
