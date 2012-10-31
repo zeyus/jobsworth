@@ -25,7 +25,7 @@ class User < ActiveRecord::Base
   has_many      :all_projects, :through => :project_permissions, :order => "projects.customer_id, projects.name", :source => :project, :readonly => false
   has_many      :project_permissions, :dependent => :destroy
 
-  has_many      :tasks, :through => :task_owners
+  has_many      :tasks, :through => :task_owners, :class_name => "TaskRecord"
   has_many      :task_owners, :dependent => :destroy
   has_many      :work_logs
 
@@ -58,7 +58,7 @@ class User < ActiveRecord::Base
 
   validates :username,
             :presence => true,
-            :length => {:minimum => 3, :maximum => 200},
+            :length => {:minimum => 2, :maximum => 200},
             :uniqueness => { :case_sensitive => false, :scope => "company_id" }
 
   validates :password, :confirmation => true, :if => :password_required?
@@ -247,7 +247,7 @@ class User < ActiveRecord::Base
 
   # Returns true if this user is allowed to view the given task.
   def can_view_task?(task)
-    ! Task.accessed_by(self).find_by_id(task).nil?
+    ! TaskRecord.accessed_by(self).find_by_id(task).nil?
   end
 
   # Returns a fragment of sql to restrict tasks to only the ones this
@@ -387,6 +387,11 @@ class User < ActiveRecord::Base
       # show when the task begins, instead of the finish date
       acc_total += task.minutes_left
     end
+  end
+
+  def self.find_for_authentication(conditions={})
+    conditions[:company_id] = Company.find_by_subdomain(conditions.delete(:subdomain)).id if conditions[:subdomain]
+    super(conditions)
   end
 
   protected

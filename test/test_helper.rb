@@ -54,7 +54,7 @@ class ActiveSupport::TestCase
     end
 
     task_count.times do
-      t = Task.make(:project => project,
+      t = TaskRecord.make(:project => project,
                     :company => project.company,
                     :users => [user],
                     :milestone => project.milestones.rand)
@@ -93,6 +93,10 @@ class ActionController::IntegrationTest
     company = Company.make
     customer = Customer.make(:company => company)
     user = User.make(:customer => customer, :company => company)
+
+    host = "#{company.subdomain}.example.com"
+    Capybara.app_host = "http://" + host
+    host! host
 
     visit new_user_session_path
     fill_in "user_username", :with => user.username

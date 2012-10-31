@@ -7,17 +7,19 @@ class TaskFilter < ActiveRecord::Base
   belongs_to :user
   belongs_to :company
   has_many(:qualifiers, :dependent => :destroy, :class_name => "TaskFilterQualifier")
-  accepts_nested_attributes_for :qualifiers
-
   has_many :keywords, :dependent => :destroy
   has_many :task_filter_users, :dependent => :delete_all
+
   accepts_nested_attributes_for :keywords
+  accepts_nested_attributes_for :qualifiers
+
   validates_presence_of :user
   validates_presence_of :name
 
   scope :shared, where(:shared => true )
   scope :visible, where(:system => false, :recent_for_user_id=>nil)
   scope :recent_for, lambda {|user| where(:recent_for_user_id => user.id).order("id desc") }
+
   before_create :set_company_from_user
   after_create :set_task_filter_status, :if => Proc.new{|x| x.recent_for_user_id.blank? && !x.system}
 
@@ -39,7 +41,7 @@ class TaskFilter < ActiveRecord::Base
   # If limit is false, no limit will be set on the tasks returned (otherwise
   # a default limit will be applied)
   def tasks(extra_conditions = nil)
-    return Task.all_accessed_by(user).where(conditions(extra_conditions)).includes(to_include).limit(500)
+    return TaskRecord.all_accessed_by(user).where(conditions(extra_conditions)).includes(to_include).limit(500)
   end
 
   # Returns an array of all tasks matching the conditions from this filter.
@@ -65,7 +67,7 @@ class TaskFilter < ActiveRecord::Base
   # Returns the count of tasks matching the conditions of this filter.
   # if extra_conditions is passed, that will be ANDed to the conditions
   def count(extra_conditions = nil)
-    Task.all_accessed_by(user).where(conditions(extra_conditions)).includes(to_include).count
+    TaskRecord.all_accessed_by(user).where(conditions(extra_conditions)).includes(to_include).count
   end
 
   # Returns a count to display for this filter. The count represents the
@@ -337,7 +339,7 @@ private
       start_time = tq.qualifiable.start_time
       end_time = tq.qualifiable.end_time
       column = tq.qualifiable_column
-      column = Task.connection.quote_column_name(column)
+      column = TaskRecord.connection.quote_column_name(column)
 
       sql = "tasks.#{ column } >= '#{ start_time.to_formatted_s(:db) }'"
       sql += " and tasks.#{ column } < '#{ end_time.to_formatted_s(:db) }'"
