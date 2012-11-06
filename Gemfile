@@ -55,13 +55,10 @@ group :test, :development do
 end
 
 group :test do
-  gem "shoulda"
+  gem "shoulda", :require => false
   gem "rspec-rails"
-  gem "mocha"
   gem "faker",            '0.3.1'
-  gem "cucumber"
   gem "database_cleaner"
-  gem "cucumber-rails"
   gem "capybara"
   gem "launchy"
   gem "simplecov", :require => false

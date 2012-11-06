@@ -8,10 +8,17 @@
 #   todos, and sheets
 #
 class TaskRecord < AbstractTask
+  has_many :property_values, :through => :task_property_values
+
+  scope :from_this_year, where("created_at > ?", Time.zone.now.beginning_of_year - 1.month)
+  scope :open_only, where(:status => 0)
+  scope :not_snoozed, where("weight IS NOT NULL")
 
   after_validation :fix_work_log_error
 
-  after_save { |r|
+  after_save do |r|
+    r.delay.calculate_dependants_score if r.status_changed?
+
     r.ical_entry.destroy if r.ical_entry
     project = r.project
     project.update_project_stats
@@ -28,29 +35,24 @@ class TaskRecord < AbstractTask
       r.milestone.update_counts
       r.milestone.update_status
     end
-  }
+  end
 
   before_save :calculate_score
 
-  has_many :property_values, :through => :task_property_values
-
-  scope :from_this_year, where("created_at > ?", Time.zone.now.beginning_of_year - 1.month)
-
-  def ready?
-    self.dependencies.reject{ |t| t.done? }.empty? && active? && !wait_for_customer
+  def snoozed?
+    !self.dependencies.reject{ |t| t.done? }.empty? or
+      self.wait_for_customer or
+      (!self.hide_until.nil? and self.hide_until > Time.now.utc) or
+      (!self.milestone.nil? and self.milestone.status_name == :planning)
   end
 
-  def active?
-    self.hide_until.nil? || self.hide_until < Time.now.utc
-  end 
-
   def self.expire_hide_until
-    TaskRecord.where("hide_until IS NOT NULL").all.each{ |task|
+    TaskRecord.where("hide_until IS NOT NULL").all.each do |task|
       if task.hide_until < Time.now.utc
         task.hide_until=nil
         task.save!
       end
-    }
+    end
   end
 
   def worked_on?
@@ -87,14 +89,6 @@ class TaskRecord < AbstractTask
 
     conditions = "(#{ conditions.join(" or ") })"
     return tf.tasks(conditions)
-  end
-
-  def worked_and_duration_class
-    if worked_minutes > duration
-      "overtime"
-    else
-      ""
-    end
   end
 
   def csv_header
@@ -213,11 +207,6 @@ class TaskRecord < AbstractTask
     return @user_work
   end
 
-  def should_calculate_score?
-    # Only calculate score if the task is open and it's not snoozed
-    !self.closed? and self.ready?
-  end
-
   def update_group(user, group, value, icon = nil)
     if group == "milestone"
       val_arr = value.split("/")
@@ -254,13 +243,6 @@ class TaskRecord < AbstractTask
     end
   end
 
-  def update_score_with(score_rule)
-    self.weight = (should_calculate_score?) ? 
-                  score_rule.calculate_score_for(self) + self.weight_adjustment :
-                  nil
-    self.save
-  end
-
   def score_rules
     score_rules = []
     score_rules.concat(project.score_rules) if self.project
@@ -278,23 +260,33 @@ class TaskRecord < AbstractTask
     score_rules
   end
 
-  private
-
   def calculate_score
-    # If the task is closed or snozzed, score should be nil
-    unless should_calculate_score?
-      self.weight = nil
-      return true
+    if self.closed?
+      self.weight = 0
+      return
     end
 
-    return self.weight = nil if self.milestone and self.milestone.status_name == :planning
+    # If the task is snozzed, score should be nil
+    if self.snoozed?
+      self.weight = nil
+      return
+    end
 
     all_score_rules = score_rules
     
-    unless all_score_rules.empty?
+    if all_score_rules.empty?
+      self.weight = self.weight_adjustment
+    else
       self.weight = all_score_rules.inject(self.weight_adjustment) do |result, score_rule|
         result + score_rule.calculate_score_for(self)
       end
+    end
+  end
+
+  def calculate_dependants_score
+    self.dependants.each do |t|
+      t.calculate_score
+      t.save
     end
   end
 
@@ -311,8 +303,6 @@ class TaskRecord < AbstractTask
   end
 
 end
-
-
 
 # == Schema Information
 #
